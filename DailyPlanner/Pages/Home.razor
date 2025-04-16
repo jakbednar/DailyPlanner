@@ -1,7 +1,280 @@
 ﻿@page "/"
+@inject TasksService TasksService
+@using DailyPlanner.Models
+@using DailyPlanner.Services
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Daily Planner</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container">
+    <h1 class="title">📅 Daily Planner</h1>
 
-Welcome to your new app.
+    <div class="center-form">
+        <div class="card">
+            <h2>Přidat úkol</h2>
+            <input @bind="newTitle" placeholder="Název" />
+            <textarea @bind="newDescription" placeholder="Popis"></textarea>
+            <input @bind="newDate" type="date" min="@today" />
+            <button @onclick="AddNewTask">➕ Přidat úkol</button>
+        </div>
+    </div>
+
+    <div class="card filter-section">
+        <label for="filter">📂 Filtrovat úkoly</label>
+        <select id="filter" @bind="selectedFilter">
+            <option value="all">Všechno</option>
+            <option value="today">Dnes</option>
+            <option value="tomorrow">Zítra</option>
+            <option value="in3">Do 3 dnů</option>
+            <option value="in7">Do 7 dnů</option>
+            <option value="custom">Vyberte datum...</option>
+        </select>
+        @if (selectedFilter == "custom")
+        {
+            <input type="date" @bind="customDate" />
+        }
+    </div>
+
+    <div class="task-section">
+        <h2>Nesplněno</h2>
+        @if (!GetFilteredTasks(false).Any())
+        {
+            <p class="no-task">Žádný úkol k zobrazení</p>
+        }
+        else
+        {
+            <div class="task-grid">
+                @foreach (var task in GetFilteredTasks(false))
+                {
+                    <div class="task">
+                        @if (task.isEditing)
+                        {
+                            <input @bind="editTitle" placeholder="Název" />
+                            <textarea @bind="editDescription" placeholder="Popis"></textarea>
+                            <input @bind="editDate" type="date" min="@today" />
+                            <div class="actions">
+                                <button @onclick="() => EndEditTask(task)">Zpět</button>
+                                <button @onclick="() => SaveEdit(task)">💾 Uložit</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <h3>@task.Title</h3>
+                            <p>@task.Description</p>
+                            <p><small>ID: @task.Id • Datum: @task.Date.ToString("dd.MM.yyyy")</small></p>
+                            <div class="actions">
+                                <button class="delete" @onclick="() => RemoveTask(task)">🗑️ Odstranit</button>
+                                <button @onclick="() => EditTask(task)">✏️ Upravit</button>
+                                <button class="complete" @onclick="() => SetAsCompleted(task)">✅ Splněno</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="task-section">
+        <h2>Splněno</h2>
+        @if (!GetFilteredTasks(true).Any())
+        {
+            <p class="no-task">Žádný úkol k zobrazení</p>
+        }
+        else
+        {
+            <div class="task-grid">
+                @foreach (var task in GetFilteredTasks(true))
+                {
+                    <div class="task completed">
+                        <h3>@task.Title</h3>
+                        <p>@task.Description</p>
+                        <p><small>ID: @task.Id • Datum: @task.Date.ToString("dd.MM.yyyy")</small></p>
+                        <div class="actions">
+                            <button class="delete" @onclick="() => RemoveTask(task)">🗑️ Odstranit</button>
+                            <button @onclick="() => EditTask(task)">✏️ Upravit</button>
+                            <button class="complete" @onclick="() => SetAsCompleted(task)">↩️ Nesplněno</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .container {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: auto;
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    .title {
+        font-size: 2.5rem;
+        margin-bottom: 2rem;
+        color: #2c3e50;
+        text-align: center;
+    }
+
+    .center-form {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+    }
+
+    .filter-section {
+        margin: 1rem auto 2rem auto;
+        max-width: 400px;
+    }
+
+    .card {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    input,
+    textarea,
+    select {
+        width: 100%;
+        margin-bottom: 0.8rem;
+        padding: 0.6rem;
+        font-size: 1rem;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+    }
+
+    textarea {
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    button {
+        padding: 0.6rem 1rem;
+        font-size: 1rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        background-color: #3498db;
+        color: white;
+        transition: 0.2s ease;
+        margin-right: 0.5rem;
+    }
+
+    button:hover {
+        background-color: #2980b9;
+    }
+
+    button.delete {
+        background-color: #e74c3c;
+    }
+
+    button.delete:hover {
+        background-color: #c0392b;
+    }
+
+    button.complete {
+        background-color: #27ae60;
+    }
+
+    button.complete:hover {
+        background-color: #1e8449;
+    }
+
+    .task-section {
+        margin-top: 2rem;
+    }
+
+    .task-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+
+    .task {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        padding: 1rem;
+    }
+
+    .task.completed {
+        background-color: #e8fce8;
+    }
+
+    .actions {
+        margin-top: 0.8rem;
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .no-task {
+        font-style: italic;
+        color: #666;
+        margin: 0.5rem 1rem;
+    }
+</style>
+
+@code {
+    int Id = 0;
+    string newTitle = "";
+    string newDescription = "";
+    bool isCompleted = false;
+    DateTime newDate = DateTime.Today;
+
+    string editTitle = "";
+    string editDescription = "";
+    DateTime editDate = DateTime.Today;
+
+    string today = DateTime.Today.ToString("yyyy-MM-dd");
+    string selectedFilter = "all";
+    DateTime customDate = DateTime.Today;
+
+    private void AddNewTask()
+    {
+        Id++;
+        TaskModel task = new(Id, newTitle, newDescription, isCompleted, newDate);
+        TasksService.AddTask(task);
+        newTitle = "";
+        newDescription = "";
+    }
+
+    private void RemoveTask(TaskModel task) => TasksService.RemoveTask(task);
+
+    private void EditTask(TaskModel task)
+    {
+        editTitle = task.Title;
+        editDescription = task.Description;
+        editDate = task.Date;
+        task.isEditing = true;
+    }
+
+    private void EndEditTask(TaskModel task)
+    {
+        task.isEditing = false;
+    }
+
+    private void SaveEdit(TaskModel task)
+    {
+        task.Title = editTitle;
+        task.Description = editDescription;
+        task.Date = editDate;
+        task.isEditing = false;
+
+        editTitle = "";
+        editDescription = "";
+        editDate = DateTime.Today;
+    }
+
+    private void SetAsCompleted(TaskModel task)
+    {
+        task.IsCompleted = !task.IsCompleted;
+    }
+
+    private IEnumerable<TaskModel> GetFilteredTasks(bool completed)
+    {
+        var filtered = TasksService.GetFilteredTasks(selectedFilter, customDate);
+        return filtered.Where(t => t.IsCompleted == completed);
+    }
+}

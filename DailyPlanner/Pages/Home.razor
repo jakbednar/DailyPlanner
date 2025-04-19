@@ -9,17 +9,42 @@
     <h1 class="title">📅 Daily Planner</h1>
 
     <div class="center-form">
-        <div class="card">
+        <div class="card add-task">
             <h2>Přidat úkol</h2>
             <input @bind="newTitle" placeholder="Název" />
             <textarea @bind="newDescription" placeholder="Popis"></textarea>
             <input @bind="newDate" type="date" min="@today" />
+            <select id="tags" @bind="selectedTag">
+                <option value="">Žádný</option>
+                @foreach (var tag in TasksService.Tags)
+                {
+                    <option value="@tag">@tag</option>
+                }
+            </select>
             <button @onclick="AddNewTask">➕ Přidat úkol</button>
+        </div>
+        <div class="card tag-manager">
+            <h2>Vytvořit tag</h2>
+            <input @bind="newTag" placeholder="Nový tag" />
+            <button @onclick="AddNewTag">➕ Přidat tag</button>
+
+            @if (TasksService.Tags.Any())
+            {
+                <div class="tag-list">
+                    @foreach (var tag in TasksService.Tags)
+                    {
+                        <div class="tag-item">
+                            <span>@tag</span>
+                            <button class="tag-remove" @onclick="() => RemoveTag(tag)">✖</button>
+                        </div>
+                    }
+                </div>
+            }
         </div>
     </div>
 
     <div class="card filter-section">
-        <label for="filter">📂 Filtrovat úkoly</label>
+        <label for="filter">📂 Filtrovat úkoly podle data</label>
         <select id="filter" @bind="selectedFilter">
             <option value="all">Všechno</option>
             <option value="today">Dnes</option>
@@ -32,6 +57,15 @@
         {
             <input type="date" @bind="customDate" />
         }
+
+        <label for="tagFilter">🏷️ Filtrovat podle tagu</label>
+        <select id="tagFilter" @bind="selectedTagFilter">
+            <option value="">Všechny</option>
+            @foreach (var tag in TasksService.Tags)
+            {
+                <option value="@tag">@tag</option>
+            }
+        </select>
     </div>
 
     <div class="task-section">
@@ -60,6 +94,7 @@
                         {
                             <h3>@task.Title</h3>
                             <p>@task.Description</p>
+                            @if (!string.IsNullOrWhiteSpace(task.Tag)) { <p class="tag">@task.Tag</p> }
                             <p><small>ID: @task.Id • Datum: @task.Date.ToString("dd.MM.yyyy")</small></p>
                             <div class="actions">
                                 <button class="delete" @onclick="() => RemoveTask(task)">🗑️ Odstranit</button>
@@ -87,6 +122,7 @@
                     <div class="task completed">
                         <h3>@task.Title</h3>
                         <p>@task.Description</p>
+                        @if (!string.IsNullOrWhiteSpace(task.Tag)) { <p class="tag">@task.Tag</p> }
                         <p><small>ID: @task.Id • Datum: @task.Date.ToString("dd.MM.yyyy")</small></p>
                         <div class="actions">
                             <button class="delete" @onclick="() => RemoveTask(task)">🗑️ Odstranit</button>
@@ -101,143 +137,239 @@
 </div>
 
 <style>
-    .container {
-        padding: 2rem;
-        max-width: 1200px;
-        margin: auto;
-        font-family: 'Segoe UI', sans-serif;
-    }
+.container {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: auto;
+    font-family: 'Segoe UI', sans-serif;
+}
 
-    .title {
-        font-size: 2.5rem;
-        margin-bottom: 2rem;
-        color: #2c3e50;
-        text-align: center;
-    }
+.title {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    color: #2c3e50;
+    text-align: center;
+}
 
-    .center-form {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 2rem;
-    }
+.center-form {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    flex-wrap: nowrap;
+}
 
-    .filter-section {
-        margin: 1rem auto 2rem auto;
-        max-width: 400px;
-    }
+.filter-section {
+    margin: 1rem auto 2rem auto;
+    max-width: 600px;
+}
 
-    .card {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
+.card {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    box-sizing: border-box;
+}
 
-    input,
-    textarea,
-    select {
-        width: 100%;
-        margin-bottom: 0.8rem;
-        padding: 0.6rem;
-        font-size: 1rem;
-        border-radius: 6px;
-        border: 1px solid #ccc;
-        box-sizing: border-box;
-    }
+input,
+textarea,
+select {
+    width: 100%;
+    margin-bottom: 0.8rem;
+    padding: 0.6rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
 
-    textarea {
-        resize: vertical;
-        min-height: 60px;
-    }
+textarea {
+    resize: vertical;
+    min-height: 60px;
+}
 
-    button {
-        padding: 0.6rem 1rem;
-        font-size: 1rem;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        background-color: #3498db;
-        color: white;
-        transition: 0.2s ease;
-        margin-right: 0.5rem;
-    }
+button {
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #3498db;
+    color: white;
+    transition: 0.2s ease;
+    margin-right: 0.5rem;
+}
 
-    button:hover {
-        background-color: #2980b9;
-    }
+button:hover {
+    background-color: #2980b9;
+}
 
-    button.delete {
-        background-color: #e74c3c;
-    }
+button.delete {
+    background-color: #e74c3c;
+}
 
-    button.delete:hover {
-        background-color: #c0392b;
-    }
+button.delete:hover {
+    background-color: #c0392b;
+    color: white;
+}
 
-    button.complete {
-        background-color: #27ae60;
-    }
+button.complete {
+    background-color: #27ae60;
+}
 
-    button.complete:hover {
-        background-color: #1e8449;
-    }
+button.complete:hover {
+    background-color: #1e8449;
+}
 
-    .task-section {
-        margin-top: 2rem;
-    }
+.task-section {
+    margin-top: 2rem;
+}
 
-    .task-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 1rem;
-    }
+.task-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
 
-    .task {
-        background-color: #fff;
-        border-radius: 8px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        padding: 1rem;
-    }
+.task {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    padding: 1rem;
+}
 
-    .task.completed {
-        background-color: #e8fce8;
-    }
+.task.completed {
+    background-color: #e8fce8;
+}
 
-    .actions {
-        margin-top: 0.8rem;
-        display: flex;
-        flex-wrap: wrap;
-    }
+.actions {
+    margin-top: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+}
 
-    .no-task {
-        font-style: italic;
-        color: #666;
-        margin: 0.5rem 1rem;
-    }
+.no-task {
+    font-style: italic;
+    color: #666;
+    margin: 0.5rem 1rem;
+}
+
+.task h3 {
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-bottom: 0.4rem;
+    color: #2c3e50;
+}
+
+.task p {
+    margin: 0.2rem 0;
+    line-height: 1.4;
+}
+
+.task .tag {
+    display: inline-block;
+    background-color: #d1ecf1;
+    color: #0c5460;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    margin-top: 0.4rem;
+}
+
+.task small {
+    display: block;
+    margin-top: 0.5rem;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.task input,
+.task textarea {
+    margin-bottom: 0.5rem;
+}
+
+.tag-manager .tag-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tag-item {
+    background-color: #ecf0f1;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.tag-item span {
+    margin-right: 0.5rem;
+}
+
+.tag-remove {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.tag-remove:hover {
+    background-color: rgba(231, 76, 60, 0.1);
+}
 </style>
 
 @code {
     int Id = 0;
+
     string newTitle = "";
     string newDescription = "";
-    bool isCompleted = false;
     DateTime newDate = DateTime.Today;
+    string selectedTag = "";
+    bool isCompleted = false;
 
     string editTitle = "";
     string editDescription = "";
     DateTime editDate = DateTime.Today;
 
-    string today = DateTime.Today.ToString("yyyy-MM-dd");
     string selectedFilter = "all";
+    string selectedTagFilter = "";
     DateTime customDate = DateTime.Today;
+    string today = DateTime.Today.ToString("yyyy-MM-dd");
+
+    string newTag = "";
 
     private void AddNewTask()
     {
         Id++;
-        TaskModel task = new(Id, newTitle, newDescription, isCompleted, newDate);
+        TaskModel task = new(Id, newTitle, newDescription, isCompleted, newDate, selectedTag);
         TasksService.AddTask(task);
         newTitle = "";
         newDescription = "";
+        selectedTag = "";
+    }
+
+    private void AddNewTag()
+    {
+        if (!string.IsNullOrWhiteSpace(newTag))
+        {
+            TasksService.AddTag(newTag.Trim());
+            newTag = "";
+        }
+    }
+
+    private void RemoveTag(string tag)
+    {
+        TasksService.RemoveTag(tag);
     }
 
     private void RemoveTask(TaskModel task) => TasksService.RemoveTask(task);
@@ -250,10 +382,7 @@
         task.isEditing = true;
     }
 
-    private void EndEditTask(TaskModel task)
-    {
-        task.isEditing = false;
-    }
+    private void EndEditTask(TaskModel task) => task.isEditing = false;
 
     private void SaveEdit(TaskModel task)
     {
@@ -261,20 +390,16 @@
         task.Description = editDescription;
         task.Date = editDate;
         task.isEditing = false;
-
         editTitle = "";
         editDescription = "";
         editDate = DateTime.Today;
     }
 
-    private void SetAsCompleted(TaskModel task)
-    {
-        task.IsCompleted = !task.IsCompleted;
-    }
+    private void SetAsCompleted(TaskModel task) => task.IsCompleted = !task.IsCompleted;
 
     private IEnumerable<TaskModel> GetFilteredTasks(bool completed)
     {
-        var filtered = TasksService.GetFilteredTasks(selectedFilter, customDate);
+        var filtered = TasksService.GetFilteredTasks(selectedFilter, customDate, selectedTagFilter);
         return filtered.Where(t => t.IsCompleted == completed);
     }
 }
